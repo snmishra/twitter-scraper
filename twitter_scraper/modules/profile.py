@@ -32,68 +32,64 @@ class Profile:
     def __parse_profile(self, page):
         # parse location, also check is username valid 
         try:
-            self.location = page.find(attrs={"class":"ProfileHeaderCard-locationText u-dir"}).contents[1].contents[0].strip()
+            self.location = page.find(attrs={"class":"ProfileHeaderCard-locationText u-dir"}).text.strip()
         except AttributeError:
             raise ValueError(
                     f'Oops! Either "@{self.username}" does not exist or is private.')
+        except IndexError:
+            self.location = None
 
         # parse birthday
         try:
-            self.birthday = page.find(attrs={"class":"ProfileHeaderCard-birthdateText u-dir"}).find().contents[0].strip().replace("Born ", "")
+            self.birthday = page.find(attrs={"class":"ProfileHeaderCard-birthdateText u-dir"}).find().text.strip().replace("Born ", "")
         except:
             self.birthday = None
 
         # parse URL of profile photo
-        self.profile_photo = page.find(attrs={"class":"ProfileAvatar-image"}).attrs['src']
+        try:
+            self.profile_photo = page.find(attrs={"class":"ProfileAvatar-image"}).attrs['src']
+        except:
+            self.profile_photo = None
+        try:
+            self.profile_photo_mini = page.find(attrs={"class":"ProfileCardMini-avatarImage"}).attrs['src']
+        except:
+            self.profile_photo_mini = None
 
         # parse full name
         name_text = page.find("title").contents[0]
         self.name = name_text[:name_text.find('(')].strip()
 
         # parse biography
-        self.biography = self.__process_paragraph(page.find(attrs={"class":"ProfileHeaderCard-bio u-dir"}).contents)
+        self.biography = self._process_paragraph(page.find(attrs={"class":"ProfileHeaderCard-bio u-dir"}))
 
         # parse user's website adress
         try:
-            self.website = page.find(attrs={'class': 'ProfileHeaderCard-urlText u-dir'}).find().contents[0].strip()
+            self.website = page.find(attrs={'class': 'ProfileHeaderCard-urlText u-dir'}).find().text.strip()
         except:
             self.website = None
         
         # parse count of followers
-        try:
-            q=page.find(attrs={"data-nav":"followers"})
-            self.followers_count = int(q.attrs["title"].split(' ')[0].replace(',',''))
-        except:
-            self.followers_count = 0
+        self.followers_count = self._get_count(page, 'followers')
 
         # parse count of likes
-        q=page.find(attrs={"data-nav":"favorites"})
-        self.likes_count = int(q.attrs["title"].split(' ')[0].replace('.', ''))
+        self.likes_count = self._get_count(page, 'favorites')
 
         # parse count of following
-        q=page.find(attrs={"data-nav":"following"})
-        self.following_count = int(q.attrs["title"].split(' ')[0].replace(',',''))
+        self.following_count = self._get_count(page, 'following')
 
         # parse count of tweets
-        q=page.find(attrs={"data-nav":"tweets"})
-        self.tweets_count = int(q.attrs["title"].split(' ')[0].replace(',',''))
+        self.tweets_count = self._get_count(page, 'tweets')
 
-    def __process_paragraph(self, contents):
-        output = ''
-        links = []
-        for i in contents:
-            try:
-                output+=i
-            except:
-                if i.name=="a":
-                    tmp_txt, tmp_lnk = process_paragraph(i.contents)
-                    links+=tmp_lnk
-                    output+=tmp_txt#+'@['+i.attrs['href']+']'
-                    links.append(i.attrs['href'])
-                elif i.name in ['s', 'b']:
-                    tmp_txt, tmp_lnk = process_paragraph(i.contents)
-                    links+=tmp_lnk
-                    output+=tmp_txt
+    def _get_count(self, page, attr):
+        try:
+            page.find(attrs={"data-nav":attr}).find(attrs={"class":"ProfileNav-value"})
+            return int(q.attrs["data-count"])
+        except:
+            return 0
+
+    def _process_paragraph(self, contents):
+        output = contents.text
+        links = [elt.attrs['href'] for elt in contents.find_all('a')]
         return output, links
 
     def __dir__(self):
@@ -104,6 +100,7 @@ class Profile:
             'biography',
             'website',
             'profile_photo',
+            'profile_photo_mini',
             'likes_count',
             'tweets_count',
             'followers_count',
